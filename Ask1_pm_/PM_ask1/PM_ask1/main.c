@@ -22,6 +22,7 @@ int main(void)
 #include <util/delay.h>
 /*#include "io.h"
 #include "delay.h"*/
+//hello
 #define del 5
 int main(void){	//PIN is output	PORTD.DIR |= 0b00000010; //PIN1_bm
 	//LED is off	PORTD.OUT |= 0b00000010; //PIN1_bm
