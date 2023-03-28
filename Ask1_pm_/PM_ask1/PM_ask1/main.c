@@ -1,31 +1,29 @@
-/*
- * PM_ask1.c
- *
- * Created: 22-Mar-23 10:04:49 PM
- * Author : kzach
- */ 
-/*
-#include <avr/io.h>
+#include <avr/io.h>#include <util/delay.h>#include <avr/interrupt.h>#include <avr/iom4808.h>//#include "iom4808.h"
+#define ped 15
+#define del 10
 
+int x=0;
+int car=0;
+int tram=0;
+int pezoi=0;
 
-int main(void)
+//_delay_ms(del);
+int main(void) 
 {
-	
-	
-    // Replace with your application code
-    while (1) 
-    {
-    }
+			PORTD.DIR |= 0b00000111; //PINs are output			PORTD.OUT |= 0b00000111; //LEDs are off			PORTD.OUTCLR= 0b00000100; //Car LED is on			PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;			//timerstuff:			//Tram:			TCA0.SPLIT.CTRLD = 1; //TCA_SPLIT_SPLITM_bm  0x01  /* Split Mode Enable bit mask. */			TCA0.SPLIT.LCNT = 0; //clear counter			TCA0.SPLIT.LCMP0= ped; //T1			//Pezoi:			TCA0.SPLIT.HCNT = 0; //clear counter			TCA0.SPLIT.HCMP0= del; //T2,T3			//Enable			TCA0.SPLIT.CTRLA = 0x7<<1; //TCA_SPLIT_CLKSEL_DIV1024_gc = (0x07<<1)			TCA0.SPLIT.CTRLA |=1;//Enable			TCA0.SPLIT.INTCTRL = TCA_SPLIT_LCMP0_bm; //TCA_SPLIT_LCMP0_bm  0x10 /* Low Compare 0 Interrupt Enable bit mask. */													 //TCA_SPLIT_LCMP0EN_bm  0x01  /* Low Compare 0 Enable bit mask. */													 //TCA_SPLIT_HCMP0EN_bm  0x10  /* High Compare 0 Enable bit mask. *///timerstuff://					-------- Tram -------- 	//while(1){}					sei(); //begin accepting interrupt signals			while (tram==0) 
+			{
+				//					-------- Pezoi --------				while (pezoi==0)				{					PORTD.OUTCLR= 0b00000100; //Car LED is on				}				PORTD.OUT |= 0b00000101; //off
+				PORTD.OUTCLR= 0b00000100; //Car LED is on
+			}			
+			cli();
 }
-*/
-#include <avr/io.h>
-#include <util/delay.h>
-/*#include "io.h"
-#include "delay.h"*/
-//hello
-#define del 5
-int main(void){	//PIN is output	PORTD.DIR |= 0b00000010; //PIN1_bm
-	//LED is off	PORTD.OUT |= 0b00000010; //PIN1_bm
-	while (1) {
-		//on		PORTD.OUTCLR= 0b00000010; //PIN1_bm		_delay_ms(del); //wait for 10ms		//off		PORTD.OUT |= 0b00000010; //PIN1_bm		_delay_ms(del); //wait for 10ms
-	}}
+		
+ISR(PORTF_PORT_vect)
+{
+	//clear the interrupt flag
+	int y = PORTF.INTFLAGS;	PORTF.INTFLAGS=y;
+	PORTD.OUT |= 0b00000111; //LEDs are off
+	PORTD.OUTCLR= 0b00000001; //Pezoi LED is on
+	pezoi=1;}
+ISR(TCA0_LCMP0_vect) //{//	TCA0.SPLIT.CTRLA = 0; //Disable	//clear flag	int intflags = TCA0.SPLIT.INTFLAGS;	TCA0.SPLIT.INTFLAGS=intflags;	PORTD.OUT |= 0b00000111; //LEDs are off	PORTD.OUTCLR= 0b00000010; //on			while(){}		tram=1;
+}
