@@ -49,7 +49,7 @@ int main(void)
         }
         PORTD.OUT |= 0b00000101; //off
         PORTD.OUTCLR= 0b00000100; //Car LED is on
-        if(pezoi==1 &&s tram==0)
+        if(pezoi==1 && tram==0)
         {
         TCA0.SPLIT.HCNT = del; //T2,T3
         TCA0.SPLIT.HCMP0= 0;
