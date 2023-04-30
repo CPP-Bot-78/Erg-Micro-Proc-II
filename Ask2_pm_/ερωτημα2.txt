@@ -1,0 +1,157 @@
+#include <avr/io.h>
+#include <stdlib.h> // για την συνάρτηση exit();
+#include <avr/interrupt.h>
+
+#define freerun 3  // o xronos gia to free run
+#define singleconv 2 // o xronos gia to single conversion
+#define turnaround 5 //o xronos gia poso tha stripsei
+#define turning180degrees 15
+#define maxAngle 4
+
+int conv=0;
+int gwnies=0;
+int anapoda=0;//αν ειναι αναποδα είναι ίσο με 1
+int turning=0;
+int turned=0;
+int turning180=0;
+
+int main(void)
+{	
+	sei();
+    //ports ini
+	PORTD.DIR |= 0b00000111; //last 3 PINs are output
+	PORTD.OUT |= 0b00000111; //LEDs are off
+	PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    
+    //counter ini
+	TCA0.SINGLE.CNT = 0; //clear counter
+	//Normal Mode (TCA_SINGLE_WGMODE_NORMAL_gc 
+	TCA0.SINGLE.CTRLB = 0;
+	TCA0.SINGLE.CTRLA = 0x7<<1; //TCA_SINGLE_CLKSEL_DIV1024_gc
+	TCA0.SINGLE.INTCTRL = TCA_SINGLE_CMP0_bm; //Interrupt Enable (=0x10)
+  
+    //ADC ini 
+    ADC0.CTRLA |= ADC_RESSEL_10BIT_gc; //10-bit resolution
+    ADC0.CTRLA |= ADC_ENABLE_bm; //Enable ADC
+    ADC0.MUXPOS |= ADC_MUXPOS_AIN7_gc; //The 7th bit //Enable Debug Mode
+    ADC0.DBGCTRL |= ADC_DBGRUN_bm; //Window Comparator Mode
+    ADC0.WINLT |= 10; //Set low  threshold
+    ADC0.WINHT |= 10; //Set high threshold
+    ADC0.INTCTRL |= ADC_WCMP_bm; //Enable Interrupts for WCM  
+    
+    while(1) 
+    {
+		ADC0.CTRLE = ADC_WINCM1_bm; //Interrupt when RESULT > WINHT
+		ADC0.CTRLA |= ADC_FREERUN_bm; //Free-Running mode enabled
+		ADC0.COMMAND |= ADC_STCONV_bm; //Start Conversion
+		PORTD.OUTCLR |= 0b00000010; // going straight
+		
+		TCA0.SINGLE.CNT = 0;
+		TCA0.SINGLE.CMP0 = freerun;
+		TCA0.SINGLE.CTRLA |=1;//Enable
+		while(conv==0)
+		{
+			;
+		}
+		ADC0.CTRLA = 0x01;
+		ADC0.CTRLE = ADC_WINCM0_bm; //Interrupt when RESULT < WINLT
+		ADC0.COMMAND |= ADC_STCONV_bm;
+		PORTD.OUTCLR |= 0b00000010;
+		TCA0.SINGLE.CNT = 0;
+		TCA0.SINGLE.CMP0 = singleconv;
+		TCA0.SINGLE.CTRLA |=1;//Enable
+		while(conv==1)
+		{
+			;
+		}
+		if(turning==1)
+		{
+			turned=0;
+			TCA0.SINGLE.CNT = 0;
+			TCA0.SINGLE.CMP0 = turnaround;
+			TCA0.SINGLE.CTRLA |=1;//Enable
+			while(turned==0)
+			{
+				;
+			}
+			turned=0;
+			PORTD.OUT |= 0b00000111; //LED are off
+			PORTD.OUTCLR |= 0b00000010; //going straight
+		}
+		if(turning180==1)
+		{
+			turned=0;
+			TCA0.SINGLE.CNT = 0;
+			TCA0.SINGLE.CMP0 = turning180degrees;
+			TCA0.SINGLE.CTRLA |=1;//Enable
+			while(turned==0)
+			{
+				;
+			}
+			turned=0;
+			PORTD.OUT |= 0b00000111; //LED are off
+			PORTD.OUTCLR |= 0b00000010; //going straight
+		}
+		if(gwnies>=maxAngle || gwnies < 0){exit(0);}
+		cli();
+    }  
+}
+
+/*
+PORTD.OUTCLR |= 0b00000100; //aristera
+ PORTD.OUTCLR |= 0b00000001; //deksia
+*/
+
+
+ISR(ADC0_WCOMP_vect)
+{
+  cli();
+  int intflags = ADC0.INTFLAGS;
+  ADC0.INTFLAGS = intflags;
+  PORTD.OUT |= 0b00000111; //LED is off
+  if(anapoda==0) //ADC0.RESL
+  {
+	 gwnies++;
+	 if(ADC0.RESL>10)
+		PORTD.OUTCLR |= 0b00000001; //deksia
+	 else if(ADC0.RESL<10)
+		PORTD.OUTCLR |= 0b00000100;
+  }
+  else if(anapoda==1)
+  {	
+	 gwnies--;
+	 if(ADC0.RESL>10)
+		PORTD.OUTCLR |=  0b00000100;//aristera
+	 else if(ADC0.RESL<10)
+		PORTD.OUTCLR |= 0b00000001; //deksia
+  }
+  turning=1;
+  sei();
+} 
+
+ISR(PORTF_PORT_vect)//anapodh leitoyrgia
+{	
+	cli();
+    int y = PORTF.INTFLAGS;
+    PORTF.INTFLAGS=y;
+    PORTD.OUT |= 0b00000111; //LEDs are off
+    PORTD.OUTCLR= 0b00000111; //all Leds are ON, device turned around
+	if (anapoda ==0) {anapoda=1;}
+	else if(anapoda ==1) {anapoda=0;}
+	turning180=1;
+    sei();
+}
+
+ISR(TCA0_CMP0_vect)
+{
+  cli();
+  TCA0.SINGLE.CTRLA = 0; //Disable
+  //clear flag
+  int intflags = TCA0.SINGLE.INTFLAGS;
+  TCA0.SINGLE.INTFLAGS=intflags;
+  if (conv ==0) {conv=1;}
+  else if(conv ==1) {conv=0;}
+  turned=1;
+  sei();
+}
+
