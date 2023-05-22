@@ -9,19 +9,19 @@
 
 void enabling(); 
 void disabling();
+void alarm();
 
 int alarm_count = 0; //counts up to 3 tries, then alarm starts
 int alarm_mode = 0; //if 0 -> enabling, if 1 -> disabling // na dw pou prepei na allaksei
 int timer_mode = 0; //if 0 -> timer, if 1 -> pwm
-int alarm_brake = 0; // from adc
+int alarm_brake = 0; // from adc, if 1 alarm will be ready to break
 int correct_pass = 0; //counts up to 4, then password is correct
 
 int main()
 {   
             //Ports #####
-    PORTD.DIR |= 0b00000111; 
-    //PORTD.OUTCLR= PIN1_bm; //LED is on
-    //PORTD.OUT |= PIN1_bm; //LED is off
+    PORTD.DIR |= 0b00000001;
+	PORTD.OUT |= PIN0_bm; //LED is off
     PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc
 			//TCA #####
 	TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;    //enable interrupt Overflow
@@ -32,22 +32,6 @@ int main()
 	ADC0.WINLT |= 10; //Set threshold
 	ADC0.INTCTRL |= ADC_WCMP_bm; //Enable Interrupts for WCM
 	ADC0.CTRLE |= ADC_WINCM0_bm; //Interrupt when RESULT < WINLT
-	/* //the will moved
-			// TCA PWM #####
-    TCA0.SINGLE.CTRLA=TCA_SINGLE_CLKSEL_DIV1024_gc;
-    TCA0.SINGLE.PER = 254;      //select the resolution
-    TCA0.SINGLE.CMP0 = 127;     //select the duty cycle
-    TCA0.SINGLE.CTRLB |= TCA_SINGLE_WGMODE_SINGLESLOPE_gc;  //select Single_Slope_PWM
-	TCA0.SINGLE.CTRLA |=1;//Enable
-            // TCA Count #####
-    TCA0.SINGLE.CTRLB = 0;//normal
-    TCA0.SINGLE.CTRLA = 0x7<<1; //TCA_SINGLE_CLKSEL_DIV1024_gc		
-    TCA0.SINGLE.CNT = 0; //clear counter
-    TCA0.SINGLE.CMP0 = 20;
-    TCA0.SINGLE.CTRLA |=1;//Enable
-
-
-	*/
     sei();
     while (1){;}
 
@@ -60,6 +44,7 @@ ISR(PORTF_PORT_vect)
 	else if(alarm_mode==1) disabling();
 	sei();
 }
+
 void enabling()
 {
 	if(correct_pass = 0 || correct_pass = 2) // correct pass =1,3 ->6 || 0,2 ->5
@@ -98,15 +83,16 @@ void enabling()
 		TCA0.SINGLE.CTRLB = 0;//normal
 		TCA0.SINGLE.CTRLA = 0x7<<1; //TCA_SINGLE_CLKSEL_DIV1024_gc
 		TCA0.SINGLE.CNT = 0; //clear counter
-		TCA0.SINGLE.CMP0 = 20; //count up to 20
+		TCA0.SINGLE.CMP0 = 20; //count up to 20 to get out
 		TCA0.SINGLE.CTRLA |=1;//Enable
 		int y = PORTF.INTFLAGS;
 		PORTF.INTFLAGS=y;
 	}
 }
+
 void disabling()
 {
-	
+	if (alarm_count==3) alarm();
 	if(correct_pass = 0 || correct_pass = 2) // correct pass =1,3 ->6 || 0,2 ->5
 	{
 		if(pin5on && PORTF.INTFLAGS || pin56on && PORTF.INTFLAGS)
@@ -142,7 +128,13 @@ void disabling()
 	else if(correct_pass = 4)
 	{
 		alarm_count=0;
+		alarm_mode=0;
+		timer_mode = 0; 
+		alarm_brake = 0;
 		correct_pass =0;
+		ADC0.CTRLA = 0; //disable adc
+		TCA0.CTRLA = 0; //disable tca
+		PORTD.OUT= PIN0_bm; // Led is off
 		int y = PORTF.INTFLAGS;
 		PORTF.INTFLAGS=y;
 	}
@@ -153,13 +145,14 @@ ISR(TCA0_OVF_vect)
     cli{};
     int intflags =TCA0.SINGLE.INTFLAGS;
     TCA0.SINGLE.INTFLAGS = intflags;
-	
+	PORTD.OUTCLR = PIN0_bm; //LED is on
     sei();
 }
 
 ISR(TCA0_CMP0_vect)
 {
     cli{};
+	if (alarm_brake==1) alarm();
 	if(timer_mode)//timer
 	{
 		ADC0.CTRLA |= ADC_RESSEL_10BIT_gc; //10-bit resolution
@@ -169,7 +162,7 @@ ISR(TCA0_CMP0_vect)
 	}
 	else//pwm cmp
 	{
-		
+		PORTD.OUT = PIN0_bm; //LED is off
 	}
 	
     int intflags = TCA0.SINGLE.INTFLAGS;
@@ -180,16 +173,32 @@ ISR(TCA0_CMP0_vect)
 ISR(ADC0_WCOMP_vect)
 {
     cli{};
-	alarm_mode=1;
+	PORTD.OUTCLR= PIN0_bm; //LED 0 is on
+	alarm_mode=1;//to get in the right path from portf isr
+	alarm_brake=1; //ready to brake in tca cmp isr
+    TCA0.SINGLE.CTRLB = 0;//normal
+    TCA0.SINGLE.CTRLA = 0x7<<1; //TCA_SINGLE_CLKSEL_DIV1024_gc
+    TCA0.SINGLE.CNT = 0; //clear counter
+    TCA0.SINGLE.CMP0 = 30; //count up to 30 to start the alarm
+    TCA0.SINGLE.CTRLA |=1;//Enable
 	disabling();
     int intflags = ADC0.INTFLAGS;
     ADC0.INTFLAGS = intflags;
     sei();
 }
 
-
-
-
+void alarm()
+{
+	alarm_brake=0;//gia na mhn ksanaboume ston timer stin alarm
+	timer_mode=1; //pwm mode in tca cmp isr
+	TCA0.SINGLE.CTRLA = 0;
+	TCA0.SINGLE.CNT=0;
+	TCA0.SINGLE.CTRLA=TCA_SINGLE_CLKSEL_DIV1024_gc;
+	TCA0.SINGLE.PER = 254; //resolution
+	TCA0.SINGLE.CMP0 = 127; //duty cycle
+	TCA0.SINGLE.CTRLB |= TCA_SINGLE_WGMODE_SINGLESLOPE_gc;  //select Single_Slope_PWM
+	TCA0.SINGLE.CTRLA |=1;//Enable
+}
 
 /* //Paradeigma
     PORTD.DIR |= PIN1_bm; //PIN is output
@@ -210,3 +219,5 @@ ISR(ADC0_WCOMP_vect)
     while (1){;}
 
 */
+
+//me tis synarthseis eksasfalizoume epishs oti an xtyphsei to interrupt tou metrhth(gia thn apenergopoihsh) tha pame kateyueian sthn isr toy
