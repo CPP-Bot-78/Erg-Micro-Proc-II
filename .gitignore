@@ -2,3 +2,9 @@
 *.ini
 *.doc
 *.docx
+*.pdf
+!Ask1_pm_/ΕΑ1-εΠΜ.pdf
+!Ask2_pm_/ΕΑ2-εΠΜ.pdf
+!Ask3_pm_/ΕΑ3-εΠΜ.pdf
+!Ask4_pm_/ΕΑ4-εΠΜ.pdf
+*.txt
