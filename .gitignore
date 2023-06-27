@@ -3,6 +3,8 @@
 *.doc
 *.docx
 *.pdf
+!ATmega4808-09-DataSheet-DS40002173B.pdf
+!AVR-IoT WxHardware User Guide.pdf
 !Ask1_pm_/ΕΑ1-εΠΜ.pdf
 !Ask2_pm_/ΕΑ2-εΠΜ.pdf
 !Ask3_pm_/ΕΑ3-εΠΜ.pdf
